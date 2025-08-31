@@ -1,0 +1,205 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Weight & Rate Calculator</title>
+    <style>
+        /* All styles are built-in, no external files needed */
+        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; background-color: #f3f4f6; margin: 0; padding: 1rem; }
+        .app-container { max-width: 600px; margin: auto; }
+        .card { background-color: white; padding: 1.5rem; border-radius: 8px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); }
+        .input-grid { display: grid; grid-template-columns: 1fr; gap: 1rem; }
+        @media (min-width: 640px) { .input-grid { grid-template-columns: 1fr 1fr; } }
+        h1 { font-size: 1.5rem; font-weight: bold; color: #1f2937; margin-bottom: 1rem; }
+        h2 { font-size: 1.25rem; font-weight: 600; color: #1f2937; margin-bottom: 0.75rem; }
+        label, .label-span { display: block; font-size: 0.875rem; font-weight: 500; color: #4b5563; margin-bottom: 0.25rem; }
+        input[type="number"] { width: 100%; border: 1px solid #d1d5db; padding: 0.75rem; border-radius: 6px; box-sizing: border-box; font-size: 1rem; }
+        .radio-group { display: flex; align-items: center; gap: 1.5rem; margin-top: 0.5rem; }
+        .radio-label { display: flex; align-items: center; gap: 0.5rem; }
+        button { background-color: #2563eb; color: white; font-weight: bold; padding: 0.75rem 1rem; border: none; border-radius: 6px; width: 100%; margin-top: 1rem; cursor: pointer; font-size: 1rem; }
+        .error-box { display: none; margin-top: 1rem; background-color: #fee2e2; border: 1px solid #ef4444; color: #b91c1c; padding: 0.75rem; border-radius: 6px; }
+        .results-card { display: none; margin-top: 1.5rem; background-color: #f9fafb; }
+        .results-card p { margin: 0.5rem 0; color: #374151; }
+        .results-card hr { border: none; border-top: 1px solid #e5e7eb; margin: 0.75rem 0; }
+        .final-amount { font-size: 1.125rem; font-weight: bold; color: #166534; margin-top: 1rem !important;}
+        .font-mono { font-family: monospace; }
+        .deduction-label { color: #4b5563; font-size: 0.875rem;}
+    </style>
+</head>
+<body>
+    <div class="app-container">
+        <h1>Weight & Rate Calculator</h1>
+
+        <div class="card">
+            <div class="input-grid">
+                <div>
+                    <label for="weight">Weight (in kg)</label>
+                    <input type="number" id="weight" placeholder="e.g., 1000">
+                </div>
+                <div>
+                    <label for="rate">Rate</label>
+                    <input type="number" id="rate" placeholder="e.g., 5500">
+                </div>
+                <div>
+                    <label for="claim">Claim (e.g., 5 for 0.05 kg)</label>
+                    <input type="number" id="claim" placeholder="e.g., 5">
+                </div>
+                <div>
+                    <label for="lab">Lab Value</label>
+                    <input type="number" id="lab" placeholder="4100">
+                </div>
+            </div>
+            <div style="margin-top: 1rem;">
+                <span class="label-span">बारदारा (Porterage)</span>
+                <div class="radio-group">
+                    <label class="radio-label">
+                        <input type="radio" name="bardara" value="yes"> Yes
+                    </label>
+                    <label class="radio-label">
+                        <input type="radio" name="bardara" value="no" checked> No
+                    </label>
+                </div>
+            </div>
+            <button id="calculate-btn">Calculate Final Amount</button>
+        </div>
+
+        <div id="error-box" class="error-box"></div>
+
+        <div id="results-card" class="card results-card">
+            <h2>Calculation Breakdown</h2>
+            <p>Weight Deduction (1.3%): <span class="font-mono" id="result-weight-deduction"></span></p>
+            <p>Claim Deduction: <span class="font-mono" id="result-claim-deduction"></span></p>
+            <!-- START: Added Total Deduction line -->
+            <p style="font-weight: bold;">Total Weight Deduction: <span class="font-mono" id="result-total-weight-deduction"></span></p>
+            <!-- END: Added Total Deduction line -->
+            <p style="font-weight: bold;">Adjusted Weight: <span class="font-mono" id="result-adjusted-weight"></span></p>
+            <hr>
+            <p>Rate Adjustment from Lab: <span class="font-mono" id="result-rate-adjustment"></span></p>
+            <p id="bardara-charge-p" style="display: none;">बारदारा Charge: <span class="font-mono" id="result-bardara-charge"></span></p>
+            <p style="font-weight: bold;">Effective Rate: <span class="font-mono" id="result-effective-rate"></span></p>
+            <hr>
+            <p>Initial Amount: <span class="font-mono" id="result-initial-amount"></span></p>
+            
+            <p class="deduction-label">Deduction (0.60%): -<span class="font-mono" id="result-deduction1"></span></p>
+            <p class="deduction-label">Deduction (0.25%): -<span class="font-mono" id="result-deduction2"></span></p>
+            <p class="deduction-label">Deduction (Weight x 5): -<span class="font-mono" id="result-deduction3"></span></p>
+
+            <hr>
+            <p class="final-amount">Final Payable Amount: <span class="font-mono" id="result-final-amount"></span></p>
+        </div>
+    </div>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', function () {
+            // --- Configuration Constants ---
+            const LAB_VALUE_BASELINE = 4100;
+            const LAB_RATE_ADJUSTMENT_FACTOR = 1.25;
+            const BARDARA_CHARGE = 15;
+            const DEDUCTION_PERCENT_1 = 0.0060;
+            const DEDUCTION_PERCENT_2 = 0.0025;
+            const WEIGHT_BASED_DEDUCTION_RATE = 5;
+            const WEIGHT_DEDUCTION_PERCENT = 0.013;
+
+            const weightInput = document.getElementById('weight');
+            const rateInput = document.getElementById('rate');
+            const claimInput = document.getElementById('claim');
+            const labInput = document.getElementById('lab');
+            const calculateBtn = document.getElementById('calculate-btn');
+            const errorBox = document.getElementById('error-box');
+            const resultsCard = document.getElementById('results-card');
+            
+            const resWeightDeduction = document.getElementById('result-weight-deduction');
+            const resClaimDeduction = document.getElementById('result-claim-deduction');
+            // START: Get reference to new total deduction element
+            const resTotalWeightDeduction = document.getElementById('result-total-weight-deduction');
+            // END: Get reference
+            const resAdjustedWeight = document.getElementById('result-adjusted-weight');
+            const resRateAdjustment = document.getElementById('result-rate-adjustment');
+            const resBardaraChargeP = document.getElementById('bardara-charge-p');
+            const resBardaraCharge = document.getElementById('result-bardara-charge');
+            const resEffectiveRate = document.getElementById('result-effective-rate');
+            const resInitialAmount = document.getElementById('result-initial-amount');
+            const resFinalAmount = document.getElementById('result-final-amount');
+            
+            const resDeduction1 = document.getElementById('result-deduction1');
+            const resDeduction2 = document.getElementById('result-deduction2');
+            const resDeduction3 = document.getElementById('result-deduction3');
+
+            calculateBtn.addEventListener('click', function () {
+                errorBox.style.display = 'none';
+                resultsCard.style.display = 'none';
+
+                const weight = parseFloat(weightInput.value);
+                const rate = parseFloat(rateInput.value);
+                const lab = parseFloat(labInput.value) || LAB_VALUE_BASELINE;
+                const bardara = document.querySelector('input[name="bardara"]:checked').value;
+
+                if (isNaN(weight) || isNaN(rate) || weight <= 0 || rate <= 0) {
+                    errorBox.textContent = 'Please enter valid numbers for Weight and Rate.';
+                    errorBox.style.display = 'block';
+                    return;
+                }
+
+                // --- Start Calculations ---
+                
+                const claimInputValue = parseFloat(claimInput.value) || 0;
+                const claimDeduction = claimInputValue / 100;
+                const weightDeduction = Math.round((weight * WEIGHT_DEDUCTION_PERCENT) * 100) / 100;
+                
+                // START: Calculate sum of deductions
+                const totalWeightDeduction = weightDeduction + claimDeduction;
+                // END: Calculate sum
+
+                const adjustedWeight = weight - totalWeightDeduction;
+                
+                const rateAdjustmentRaw = (LAB_VALUE_BASELINE - lab) * LAB_RATE_ADJUSTMENT_FACTOR;
+                const rateAdjustment = Math.round(rateAdjustmentRaw);
+                
+                let effectiveRate = rate - rateAdjustment;
+                if (bardara === 'yes') {
+                    effectiveRate -= BARDARA_CHARGE;
+                }
+                
+                const initialAmount = adjustedWeight * effectiveRate;
+                
+                const deduction1 = initialAmount * DEDUCTION_PERCENT_1;
+                const deduction2 = initialAmount * DEDUCTION_PERCENT_2;
+                const deduction3 = weight * WEIGHT_BASED_DEDUCTION_RATE;
+                const finalAmount = initialAmount - deduction1 - deduction2 - deduction3;
+
+                // --- Display results ---
+
+                // Modified display logic (multiplying by 100)
+                resWeightDeduction.textContent = `${(weightDeduction * 100).toFixed(0)} kg`;
+                resClaimDeduction.textContent = `${(claimDeduction * 100).toFixed(0)} kg`;
+                
+                // START: Display the new total, following the same format
+                resTotalWeightDeduction.textContent = `${(totalWeightDeduction * 100).toFixed(0)} kg`;
+                // END: Display the new total
+
+                resAdjustedWeight.textContent = `${adjustedWeight.toFixed(2)} kg`;
+                resRateAdjustment.textContent = rateAdjustment > 0 ? `+${rateAdjustment}` : rateAdjustment;
+                
+                if (bardara === 'yes') {
+                    resBardaraCharge.textContent = `-${BARDARA_CHARGE}`;
+                    resBardaraChargeP.style.display = 'block';
+                } else {
+                    resBardaraChargeP.style.display = 'none';
+                }
+
+                resEffectiveRate.textContent = effectiveRate.toFixed(2);
+                resInitialAmount.textContent = `₹ ${initialAmount.toFixed(2)}`;
+
+                resDeduction1.textContent = `₹ ${deduction1.toFixed(2)}`;
+                resDeduction2.textContent = `₹ ${deduction2.toFixed(2)}`;
+                resDeduction3.textContent = `₹ ${deduction3.toFixed(2)}`;
+                
+                resFinalAmount.textContent = `₹ ${finalAmount.toFixed(2)}`;
+
+                resultsCard.style.display = 'block';
+            });
+        });
+    </script>
+</body>
+</html>
